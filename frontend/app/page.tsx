@@ -29,18 +29,25 @@ export default function HomePage() {
     setSymbol(ticker);
     setState("loading");
     setWatchlistState("idle");
-    try {
-      const [history, companyInfo, ind] = await Promise.all([
-        api.getHistory(ticker, "1y", "1d"),
-        api.getInfo(ticker),
-        api.getIndicators(ticker),
-      ]);
-      setCandles(history.candles);
-      setInfo(companyInfo);
-      setIndicators(ind);
+
+    // Fetch independently: the chart (history) is the core view, so one
+    // rate-limited fundamentals/indicators call from Yahoo must never blank
+    // the whole page. We render as long as the chart loads and just mark the
+    // other panels unavailable if they failed.
+    const [historyRes, infoRes, indRes] = await Promise.allSettled([
+      api.getHistory(ticker, "1y", "1d"),
+      api.getInfo(ticker),
+      api.getIndicators(ticker),
+    ]);
+
+    if (historyRes.status === "fulfilled") {
+      setCandles(historyRes.value.candles);
+      setInfo(infoRes.status === "fulfilled" ? infoRes.value : null);
+      setIndicators(indRes.status === "fulfilled" ? indRes.value : null);
       setState("ready");
-    } catch (e) {
-      setErrorMsg(e instanceof ApiError ? e.message : "Something went wrong loading that stock.");
+    } else {
+      const reason = historyRes.reason;
+      setErrorMsg(reason instanceof ApiError ? reason.message : "Something went wrong loading that stock.");
       setState("error");
     }
   }
@@ -92,11 +99,15 @@ export default function HomePage() {
         </div>
       )}
 
-      {state === "ready" && info && indicators && (
+      {state === "ready" && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="flex flex-col gap-4 lg:col-span-2">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <IndicatorBadges indicators={indicators} />
+              {indicators ? (
+                <IndicatorBadges indicators={indicators} />
+              ) : (
+                <span className="text-xs text-muted">Trend read unavailable (data provider rate-limited — try again shortly)</span>
+              )}
               {username ? (
                 <button
                   onClick={handleAddToWatchlist}
@@ -132,7 +143,14 @@ export default function HomePage() {
               <StockChart candles={candles} />
             </div>
 
-            <FundamentalsCard info={info} />
+            {info ? (
+              <FundamentalsCard info={info} />
+            ) : (
+              <div className="flex items-center gap-2 rounded-xl border border-ink-border bg-ink-surface px-4 py-4 text-xs text-muted">
+                <AlertCircle size={14} className="text-loss" />
+                Fundamentals unavailable right now — Yahoo rate-limited this request. The chart above is live; try again in a moment for company details.
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-1">
