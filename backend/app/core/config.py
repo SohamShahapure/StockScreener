@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     # array. Read it via `settings.cors_origins_list`.
     CORS_ORIGINS: str = "http://localhost:3000"
 
+    # Regex of additional allowed CORS origins, on top of CORS_ORIGINS. The
+    # default accepts any Vercel deployment URL (production + previews), so the
+    # frontend works without hand-matching the exact origin. Set to "" to
+    # disable. Anchored so it can't match "evil-vercel.app.attacker.com".
+    CORS_ORIGIN_REGEX: str = r"https://([a-z0-9-]+\.)*vercel\.app"
+
     # Phase 11 auth: signs the login tokens. MUST be overridden in production
     # via the SECRET_KEY env var - anyone who knows it can mint valid tokens.
     SECRET_KEY: str = "dev-insecure-change-me-in-production"
