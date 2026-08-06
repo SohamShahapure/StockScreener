@@ -1,0 +1,34 @@
+# --- Python / backend ---
+__pycache__/
+*.pyc
+backend/venv/
+backend/.venv/
+.pytest_cache/
+backend/.pytest_cache/
+
+# Local databases & vector store (never commit data or secrets)
+*.db
+backend/*.db
+backend/chroma_db/
+backend/hf-cache/
+
+# Environment files (contain API keys & secrets)
+.env
+backend/.env
+frontend/.env.local
+*.env.local
+
+# --- Node / frontend ---
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+.vercel/
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,74 @@
+# Render Blueprint for the AI Stock Screener backend (Phase 11).
+# Deploy: push this repo to GitHub, then in Render → "New +" → "Blueprint",
+# point it at the repo. Render reads this file and provisions everything.
+#
+# It creates:
+#   - a Python web service running the FastAPI backend (rootDir: backend)
+#   - a managed PostgreSQL database, wired into DATABASE_URL automatically
+#   - a persistent disk so the ChromaDB index + the embedding-model cache
+#     survive restarts/redeploys (see the note on plans below)
+#
+# PLANS / COST: the web service is set to `starter` because the AI-insight
+# feature loads an embedding model (sentence-transformers/torch) that needs
+# more RAM than the 512MB free tier, and because a persistent disk requires a
+# paid instance. If you only want the core screener (search/chart/news) and
+# don't mind the KB re-downloading its model on each restart, change the web
+# service `plan` to `free` and delete the `disk:` block below.
+#
+# SECRETS to set in the Render dashboard after the first deploy (they're
+# marked sync:false so they are NOT stored in git):
+#   - GROQ_API_KEY     : your Groq key (console.groq.com/keys)
+#   - CORS_ORIGINS     : ["https://<your-vercel-app>.vercel.app"]
+#   - NEWS_API_KEY     : optional, for the news tab (newsapi.org)
+
+services:
+  - type: web
+    name: stockscreener-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    autoDeploy: true
+    disk:
+      name: kb-data
+      mountPath: /var/data
+      sizeGB: 2
+    envVars:
+      # Auth token signing key - Render generates a strong random value.
+      - key: SECRET_KEY
+        generateValue: true
+      # LLM: Groq (fast, hosted). Set the key in the dashboard.
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: LLM_TEMPERATURE
+        value: "0.1"
+      # Your Vercel frontend origin, e.g. ["https://tickerboom.vercel.app"]
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional integrations
+      - key: NEWS_API_KEY
+        sync: false
+      # Postgres connection string, injected from the database below.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stockscreener-db
+          property: connectionString
+      # Persist the vector store + HF model cache on the mounted disk.
+      - key: CHROMA_PERSIST_DIR
+        value: /var/data/chroma_db
+      - key: HF_HOME
+        value: /var/data/hf-cache
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+
+databases:
+  - name: stockscreener-db
+    plan: free
+    databaseName: stock_screener
+    user: stock_screener
