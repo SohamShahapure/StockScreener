@@ -12,6 +12,7 @@ httpx==0.27.2
 sqlalchemy==2.0.35
 psycopg2-binary==2.9.9
 requests==2.32.3
+cloudscraper==1.2.71
 praw==7.7.1
 vaderSentiment==3.3.2
 yake==0.7.3
