@@ -3,6 +3,8 @@ Centralized app configuration, loaded from environment variables / .env file.
 Keeping this separate means every other module imports `settings` instead of
 reading os.environ directly - one source of truth.
 """
+import json
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,9 +12,12 @@ class Settings(BaseSettings):
     APP_NAME: str = "Stock Screener API"
     API_PREFIX: str = "/api/stocks"
 
-    # Comma-free JSON list in .env, e.g. ["http://localhost:3000"]. In
-    # production set this to your Vercel URL (Phase 11 deployment).
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    # Allowed browser origins for CORS. Kept as a plain string (not list[str])
+    # so pydantic-settings doesn't force a strict JSON parse on the env var -
+    # that made Render 500 at startup when the value was a bare URL. Now any of
+    # these work: "https://app.vercel.app", a comma-separated list, or a JSON
+    # array. Read it via `settings.cors_origins_list`.
+    CORS_ORIGINS: str = "http://localhost:3000"
 
     # Phase 11 auth: signs the login tokens. MUST be overridden in production
     # via the SECRET_KEY env var - anyone who knows it can mint valid tokens.
@@ -69,6 +74,20 @@ class Settings(BaseSettings):
     DEFAULT_HISTORY_INTERVAL: str = "1d"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Parse CORS_ORIGINS into a list, accepting a JSON array, a
+        comma-separated string, or a single bare URL. Empty -> []."""
+        raw = (self.CORS_ORIGINS or "").strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                return [str(o).strip() for o in json.loads(raw)]
+            except (ValueError, TypeError):
+                pass
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
 
 settings = Settings()
