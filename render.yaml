@@ -49,6 +49,16 @@ services:
       # Optional integrations
       - key: NEWS_API_KEY
         sync: false
+      # Reddit social sentiment (free "script" app at reddit.com/prefs/apps).
+      # Set the ID/secret values in the Render dashboard, not here.
+      - key: REDDIT_CLIENT_ID
+        sync: false
+      - key: REDDIT_CLIENT_SECRET
+        sync: false
+      - key: REDDIT_USER_AGENT
+        value: stock-screener by u/yourusername
+      - key: REDDIT_SUBREDDITS
+        value: stocks,investing,wallstreetbets,IndianStockMarket
       # Postgres connection string, injected from the database below.
       - key: DATABASE_URL
         fromDatabase:
