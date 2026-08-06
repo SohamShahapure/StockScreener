@@ -1,10 +1,12 @@
 """
 Wraps ChromaDB for the RAG knowledge base. Client and embedding function
 are injectable (constructor args) rather than hardcoded module globals -
-production code gets the real persistent client + sentence-transformers
-model; tests inject an ephemeral in-memory client + a fake embedding
-function, so the storage/retrieval *mechanics* are fully testable without
-downloading a ~90MB model or touching a real disk-backed index.
+production code gets the real persistent client + ChromaDB's built-in ONNX
+embedding model (all-MiniLM-L6-v2 via onnxruntime - the SAME model as
+sentence-transformers but WITHOUT the ~1GB PyTorch dependency, so it fits in
+a free-tier 512MB instance); tests inject an ephemeral in-memory client + a
+fake embedding function, so the storage/retrieval *mechanics* are fully
+testable without any model download or disk-backed index.
 """
 from typing import Optional
 
@@ -26,9 +28,10 @@ class VectorStore:
     def __init__(self, client=None, embedding_function=None, collection_name: Optional[str] = None):
         try:
             self._client = client or chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
-            self._embedding_function = embedding_function or embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name=settings.EMBEDDING_MODEL_NAME
-            )
+            # DefaultEmbeddingFunction is ChromaDB's ONNX all-MiniLM-L6-v2 - it
+            # downloads a small (~80MB) ONNX model once and runs on onnxruntime,
+            # no torch. Same embeddings as before, a fraction of the memory.
+            self._embedding_function = embedding_function or embedding_functions.DefaultEmbeddingFunction()
             self._collection = self._client.get_or_create_collection(
                 name=collection_name or settings.KB_COLLECTION_NAME,
                 embedding_function=self._embedding_function,
@@ -36,9 +39,8 @@ class VectorStore:
         except Exception as e:
             raise VectorStoreError(
                 f"Could not initialize the knowledge base ({e}). If this is the first "
-                f"time running this, the embedding model ('{settings.EMBEDDING_MODEL_NAME}') "
-                f"needs to download from Hugging Face (~90MB, one-time only) - check your "
-                f"internet connection and try again."
+                f"time running this, the embedding model needs a one-time ~80MB download - "
+                f"check your internet connection and try again."
             ) from e
 
     def upsert_documents(self, documents: list[dict]) -> None:

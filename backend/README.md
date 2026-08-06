@@ -67,12 +67,13 @@ Free tier: 100 requests/day. Every other endpoint works without this key.
 StockTwits needs no key - it's a public endpoint.
 
 ### Knowledge base (Phase 9) - one-time model download
-The first call to `/api/kb/{symbol}/build` downloads the embedding model
-(`all-MiniLM-L6-v2`, ~90MB) from Hugging Face. This needs internet **once**;
-after that it's cached locally (`~/.cache` by default) and works offline.
-If the download fails (no internet at that moment), the endpoint returns a
-clear `503` explaining exactly that - not a crash - and retries cleanly on
-the next call.
+The first call to `/api/kb/{symbol}/build` downloads ChromaDB's ONNX
+embedding model (`all-MiniLM-L6-v2`, ~80MB, runs on onnxruntime - no
+PyTorch, so it fits in a free-tier 512MB instance). This needs internet
+**once**; after that it's cached locally (`~/.cache/chroma`) and works
+offline. If the download fails (no internet at that moment), the endpoint
+returns a clear `503` explaining exactly that - not a crash - and retries
+cleanly on the next call.
 
 ## Run
 ```bash
@@ -159,8 +160,8 @@ data is unavailable, the KB still builds from whatever news/social data
 exists rather than failing outright.
 
 `VectorStore` takes its Chroma client and embedding function as constructor
-arguments rather than hardcoding them - production gets the real
-persistent client + sentence-transformers model; tests inject an ephemeral
+arguments rather than hardcoding them - production gets the real persistent
+client + ChromaDB's ONNX embedding model; tests inject an ephemeral
 in-memory client + a fake embedding function, so all the storage/retrieval
 logic is tested without needing the real model download.
 

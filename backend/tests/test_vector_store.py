@@ -90,14 +90,14 @@ def test_upsert_empty_list_is_a_safe_noop(store):
 
 def test_construction_failure_raises_clean_vectorstoreerror(monkeypatch):
     """Reproduces the exact real-world failure: the embedding model can't
-    be loaded (e.g. no internet for the one-time Hugging Face download).
+    be loaded (e.g. no internet for the one-time ONNX model download).
     Must surface as a clear VectorStoreError, not a raw exception."""
     from chromadb.utils import embedding_functions
 
     def broken_factory(*args, **kwargs):
-        raise OSError("We couldn't connect to 'https://huggingface.co' to load the files")
+        raise OSError("Could not download the ONNX embedding model")
 
-    monkeypatch.setattr(embedding_functions, "SentenceTransformerEmbeddingFunction", broken_factory)
+    monkeypatch.setattr(embedding_functions, "DefaultEmbeddingFunction", broken_factory)
 
     with pytest.raises(VectorStoreError, match="Could not initialize the knowledge base"):
         VectorStore(client=chromadb.EphemeralClient())  # no embedding_function passed - uses the broken factory

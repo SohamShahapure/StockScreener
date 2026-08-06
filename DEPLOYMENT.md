@@ -5,9 +5,12 @@ Production topology:
 ```
 Vercel (Next.js frontend)  ──HTTPS──▶  Render (FastAPI backend)
                                             ├── Render PostgreSQL  (users, watchlists, caches)
-                                            └── ChromaDB on a persistent disk (RAG index)
+                                            └── ChromaDB + ONNX embeddings (RAG index, in-process)
 LLM: Groq hosted API (fast, free tier)
 ```
+
+**This whole stack runs on free tiers** — Vercel (frontend), Render free web
+service + free Postgres (backend + DB), and Groq's free API (LLM).
 
 Nothing in the app code is environment-specific — everything below is
 configuration. Do the backend first (the frontend needs its URL).
@@ -33,17 +36,21 @@ configuration. Do the backend first (the frontend needs its URL).
    `https://<service>.onrender.com/` returns `{"status":"ok",...}` and
    `/docs` loads.
 
-**Plan note:** `render.yaml` sets the web service to **Starter** on purpose —
-the AI-insight embedding model (sentence-transformers/torch) needs more RAM
-than the 512 MB free tier, and the persistent disk (so the ChromaDB index and
-model cache survive restarts) requires a paid instance. For a free-tier demo
-of just the screener, set the web service `plan: free` and remove the `disk:`
-block — the core stock/news features work; the KB just re-downloads its model
-on each cold start.
+**Free tier — $0, everything included.** `render.yaml` is configured for
+Render's free plan (web service + free Postgres, no paid disk). The AI-insight
+feature uses ChromaDB's **ONNX** embedding model (all-MiniLM-L6-v2 via
+onnxruntime — no PyTorch), which fits in the free 512 MB instance. Known
+free-tier behaviors, all fine for a portfolio:
+- The service **sleeps after ~15 min idle**; the next request cold-starts it
+  (~30–60 s), then it's fast. (Tip: a free uptime pinger like UptimeRobot
+  hitting `/` every 10 min keeps it warm.)
+- **No persistent disk**, so the ChromaDB index is ephemeral and rebuilt on
+  demand after a restart; the ~80 MB ONNX model re-downloads on cold start.
+- The free **Postgres expires after ~90 days** (Render emails you). Migrations
+  run automatically on startup (`init_db()` builds the tables on fresh Postgres).
 
-**Postgres:** the free Render database expires after ~90 days — fine for a
-portfolio, upgrade for anything longer-lived. Migrations run automatically on
-startup (`init_db()` creates the tables on the fresh Postgres).
+Want it always-on and persistent later? Bump the web service to `plan: starter`
+and add a `disk:` block — no code changes needed.
 
 > Prefer Docker or Railway? A ready [`backend/Dockerfile`](backend/Dockerfile)
 > is included — point any Docker-based host at the `backend/` directory and

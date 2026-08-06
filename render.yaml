@@ -1,45 +1,40 @@
-# Render Blueprint for the AI Stock Screener backend (Phase 11).
+# Render Blueprint for the AI Stock Screener backend — FREE TIER.
 # Deploy: push this repo to GitHub, then in Render → "New +" → "Blueprint",
-# point it at the repo. Render reads this file and provisions everything.
+# point it at the repo. Render reads this file and provisions everything at $0.
 #
 # It creates:
-#   - a Python web service running the FastAPI backend (rootDir: backend)
-#   - a managed PostgreSQL database, wired into DATABASE_URL automatically
-#   - a persistent disk so the ChromaDB index + the embedding-model cache
-#     survive restarts/redeploys (see the note on plans below)
+#   - a free Python web service running the FastAPI backend (rootDir: backend)
+#   - a free managed PostgreSQL database, wired into DATABASE_URL automatically
 #
-# PLANS / COST: the web service is set to `starter` because the AI-insight
-# feature loads an embedding model (sentence-transformers/torch) that needs
-# more RAM than the 512MB free tier, and because a persistent disk requires a
-# paid instance. If you only want the core screener (search/chart/news) and
-# don't mind the KB re-downloading its model on each restart, change the web
-# service `plan` to `free` and delete the `disk:` block below.
+# Free-tier realities (all fine for a portfolio demo):
+#   - The web service sleeps after ~15 min idle; the next request cold-starts
+#     it (~30-60s). Subsequent requests are fast.
+#   - No persistent disk on free tier, so the ChromaDB index lives on the
+#     ephemeral filesystem and is rebuilt on demand after a restart. The
+#     embedding model is ONNX/all-MiniLM (no PyTorch), which fits in the
+#     512MB free instance and re-downloads (~80MB) after a cold start.
+#   - The free Postgres database expires after ~90 days (Render emails you).
 #
-# SECRETS to set in the Render dashboard after the first deploy (they're
-# marked sync:false so they are NOT stored in git):
-#   - GROQ_API_KEY     : your Groq key (console.groq.com/keys)
-#   - CORS_ORIGINS     : ["https://<your-vercel-app>.vercel.app"]
-#   - NEWS_API_KEY     : optional, for the news tab (newsapi.org)
+# SECRETS to set in the Render dashboard (marked sync:false, NOT stored in git):
+#   - GROQ_API_KEY : your Groq key (console.groq.com/keys)
+#   - CORS_ORIGINS : ["https://<your-vercel-app>.vercel.app"]
+#   - NEWS_API_KEY : optional, for the news tab (newsapi.org)
 
 services:
   - type: web
     name: stockscreener-api
     runtime: python
     rootDir: backend
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /
     autoDeploy: true
-    disk:
-      name: kb-data
-      mountPath: /var/data
-      sizeGB: 2
     envVars:
       # Auth token signing key - Render generates a strong random value.
       - key: SECRET_KEY
         generateValue: true
-      # LLM: Groq (fast, hosted). Set the key in the dashboard.
+      # LLM: Groq (fast, hosted - no local memory needed). Set the key below.
       - key: LLM_PROVIDER
         value: groq
       - key: GROQ_API_KEY
@@ -59,11 +54,9 @@ services:
         fromDatabase:
           name: stockscreener-db
           property: connectionString
-      # Persist the vector store + HF model cache on the mounted disk.
+      # Ephemeral on free tier - the KB rebuilds on demand after a restart.
       - key: CHROMA_PERSIST_DIR
-        value: /var/data/chroma_db
-      - key: HF_HOME
-        value: /var/data/hf-cache
+        value: ./chroma_db
       - key: PYTHON_VERSION
         value: "3.11.9"
 
