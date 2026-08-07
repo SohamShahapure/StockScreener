@@ -7,9 +7,6 @@ real financial data through Retrieval-Augmented Generation (RAG).
 
 > **Live demo:** https://your-app.vercel.app  ·  **API:** https://stockscreener-api-safu.onrender.com
 
-_(The backend is on a free tier and sleeps when idle — the first request after
-a while may take ~50s to wake up, then it's fast.)_
-
 ---
 
 ## What it does
